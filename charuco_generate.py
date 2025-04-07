@@ -4,10 +4,10 @@ import numpy as np
 
 def main():
     # Define board parameters
-    squares_x = 5         # Number of chessboard squares in the X direction
-    squares_y = 7         # Number of chessboard squares in the Y direction
+    squares_x = 4         # Number of chessboard squares in the X direction
+    squares_y = 5         # Number of chessboard squares in the Y direction
     square_length = 0.03    # Square side length in pixels (adjust as needed)
-    marker_length = 0.015    # Marker side length in pixels (should be smaller than square_length)
+    marker_length = 0.02    # Marker side length in pixels (should be smaller than square_length)
     LENGTH_PX = 640   # total length of the page in pixels
     MARGIN_PX = 20    # size of the margin in pixels 
     # Choose a predefined dictionary. You can change the dictionary if desired.

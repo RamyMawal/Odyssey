@@ -1,5 +1,6 @@
 import sys
 import cv2
+import cv2.aruco as aruco
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage, QPixmap
@@ -8,6 +9,7 @@ from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QPushBut
 class VideoThread(QThread):
     # Signal that will send a QImage to update the GUI
     change_pixmap_signal = pyqtSignal(QImage)
+    dictionary = aruco.getPredefinedDictionary(aruco.DICT_5X5_100)
     
     def run(self):
         # Open the default camera
@@ -16,15 +18,24 @@ class VideoThread(QThread):
             ret, frame = cap.read()
             if not ret:
                 break  # Stop if frame is not captured
-            
+
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            corners, ids, rejected = aruco.detectMarkers(gray, self.dictionary)
+
             # Place for heavy processing (e.g., filtering, object detection)
             # For demonstration, we just convert BGR (OpenCV default) to RGB.
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
+            if(rejected):
+                img_drawn = rgb_frame
+            else:
+                img_drawn = aruco.drawDetectedMarkers(rgb_frame.copy(), corners, ids)
+
             # Convert the frame (a NumPy array) to QImage:
-            h, w, ch = rgb_frame.shape
+            h, w, ch = img_drawn.shape
             bytes_per_line = ch * w
-            qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+            qt_image = QImage(img_drawn.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
             
             # Emit the signal with the new QImage
             self.change_pixmap_signal.emit(qt_image)
