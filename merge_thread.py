@@ -14,23 +14,30 @@ class VideoThread(QThread):
     def run(self):
         # Open the default camera
         cap = cv2.VideoCapture(2)
+        npz_file = np.load("/home/ramy-mawal/Desktop/Projects/rc-robot-ui/calibration_data.npz") 
+        camera_matrix = npz_file['camera_matrix']
+        dist_coeff = npz_file['dist_coeffs']
+        arucoParams = cv2.aruco.DetectorParameters()
+        
+
+        print(npz_file.files)
         while True:
             ret, frame = cap.read()
             if not ret:
                 break  # Stop if frame is not captured
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            undistorted_frame = cv2.undistort(frame, cameraMatrix=camera_matrix, distCoeffs=dist_coeff)
 
-            corners, ids, rejected = aruco.detectMarkers(gray, self.dictionary)
+            gray = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2GRAY)
+
+            corners, ids, rejected = aruco.detectMarkers(gray, self.dictionary, parameters=arucoParams)
+
 
             # Place for heavy processing (e.g., filtering, object detection)
             # For demonstration, we just convert BGR (OpenCV default) to RGB.
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            if(rejected):
-                img_drawn = rgb_frame
-            else:
-                img_drawn = aruco.drawDetectedMarkers(rgb_frame.copy(), corners, ids)
+            rgb_frame = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2RGB)
+
+            img_drawn = aruco.drawDetectedMarkers(rgb_frame.copy(), corners, ids)
 
             # Convert the frame (a NumPy array) to QImage:
             h, w, ch = img_drawn.shape
