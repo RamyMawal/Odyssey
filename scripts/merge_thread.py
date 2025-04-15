@@ -18,7 +18,7 @@ class VideoThread(QThread):
         camera_matrix = npz_file['camera_matrix']
         dist_coeff = npz_file['dist_coeffs']
         arucoParams = cv2.aruco.DetectorParameters()
-        
+        marker_length = 0.015 
 
         print(npz_file.files)
         while True:
@@ -29,22 +29,19 @@ class VideoThread(QThread):
             undistorted_frame = cv2.undistort(frame, cameraMatrix=camera_matrix, distCoeffs=dist_coeff)
 
             gray = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2GRAY)
-
             corners, ids, rejected = aruco.detectMarkers(gray, self.dictionary, parameters=arucoParams)
-
-
-            # Place for heavy processing (e.g., filtering, object detection)
-            # For demonstration, we just convert BGR (OpenCV default) to RGB.
             rgb_frame = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2RGB)
-
             img_drawn = aruco.drawDetectedMarkers(rgb_frame.copy(), corners, ids)
 
-            # Convert the frame (a NumPy array) to QImage:
+            if ids is not None:
+                rvec, tvec,  = aruco.estimatePoseSingleMarkers(corners, marker_length, camera_matrix, dist_coeff)
+                for i in range(len(ids)):
+                    img_drawn = cv2.drawFrameAxes(img_drawn, camera_matrix, dist_coeff, rvec[i], tvec[i], 0.01)            
+
             h, w, ch = img_drawn.shape
             bytes_per_line = ch * w
             qt_image = QImage(img_drawn.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
             
-            # Emit the signal with the new QImage
             self.change_pixmap_signal.emit(qt_image)
         cap.release()
 

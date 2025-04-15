@@ -1,7 +1,7 @@
 import cv2
 import cv2.aruco as aruco
 
-id = 1
+id = 2
 
 def generate_aruco_marker(marker_id=0, marker_size=200, save_path="."):
     file_name = f"{save_path}/marker_5X5_{marker_id}.png"

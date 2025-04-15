@@ -35,7 +35,7 @@ class VideoThread(QThread):
 
         all_charuco_corners = []
         all_charuco_ids = []
-        mtx = any;
+        mtx = any
         dist = any
 
         for image_file in image_files:
@@ -82,7 +82,7 @@ class VideoThread(QThread):
 
         all_charuco_corners = []
         all_charuco_ids = []
-        mtx = any;
+        mtx = any
         dist = any
 
         first = True
