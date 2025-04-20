@@ -21,9 +21,9 @@ class ButtonUpdater(QLabel):
 if __name__ == "__main__":
 
 
-    app = QApplication(sys.argv);
+    app = QApplication(sys.argv)
 
-    window = QWidget();
+    window = QWidget()
     window.setWindowTitle("Simple Test App")
 
     layout = QHBoxLayout()
@@ -36,6 +36,6 @@ if __name__ == "__main__":
     layout.addWidget(button)
     window.setLayout(layout)
 
-    window.show();
+    window.show()
 
     sys.exit(app.exec())

@@ -1,83 +1,54 @@
 import sys
-import cv2
-import cv2.aruco as aruco
-import numpy as np
-from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot
+import serial as pySerial
+from data_sender import SendDataTask
+from capture import VideoThread
+from PyQt6.QtCore import pyqtSlot, QThreadPool
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QPushButton
-
-class VideoThread(QThread):
-    # Signal that will send a QImage to update the GUI
-    change_pixmap_signal = pyqtSignal(QImage)
-    dictionary = aruco.getPredefinedDictionary(aruco.DICT_5X5_100)
-
-    def __init__(self):
-        super().__init__()
-        self._running = True  # Add a flag to control the thread's execution
-
-    def run(self):
-        # Open the default camera
-        cap = cv2.VideoCapture(2)
-        npz_file = np.load("/home/ramy-mawal/Desktop/Projects/rc-robot-ui/calibration_data.npz") 
-        camera_matrix = npz_file['camera_matrix']
-        dist_coeff = npz_file['dist_coeffs']
-        arucoParams = cv2.aruco.DetectorParameters()
-        marker_length = 0.015 
-
-        print(npz_file.files)
-        while self._running:  
-            ret, frame = cap.read()
-            if not ret:
-                break  
-
-            undistorted_frame = frame # cv2.undistort(frame, cameraMatrix=camera_matrix, distCoeffs=dist_coeff)
-
-            gray = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2GRAY)
-            corners, ids, _ = aruco.detectMarkers(gray, self.dictionary, parameters=arucoParams)
-            rgb_frame = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2RGB)
-            img_drawn = aruco.drawDetectedMarkers(rgb_frame.copy(), corners, ids)
-
-            if ids is not None:
-                rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, marker_length, camera_matrix, dist_coeff)
-                for i in range(len(ids)):
-                    img_drawn = cv2.drawFrameAxes(img_drawn, camera_matrix, dist_coeff, rvec[i], tvec[i], 0.01)            
-
-            h, w, ch = img_drawn.shape
-            bytes_per_line = ch * w
-            qt_image = QImage(img_drawn.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-            
-            self.change_pixmap_signal.emit(qt_image)
-        
-        cap.release()  # Release the camera when the loop ends
-
-    def stop(self):
-        """Stop the thread by setting the running flag to False."""
-        self._running = False
-
-    def close(self):
-        """Handle the thread close event to properly terminate the thread."""
-        self.stop()
-        self.wait()  
-
+from PyQt6.QtWidgets import (
+    QApplication, QLabel, QPushButton, QComboBox,
+    QTextEdit, QVBoxLayout, QHBoxLayout, QWidget
+)
 
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("OpenCV Video Stream with QThread")
+        self.serial_port = None
         
         self.image_label = QLabel()
         self.image_label.setFixedSize(640, 480)
+
+        # --- Layouts ---
+        video_layout = QVBoxLayout()
+        video_layout.addWidget(self.image_label)
+
+        # --- Serial Port Section ---
+        self.port_dropdown = QComboBox()
+        self.refresh_serial_ports()
+
+        self.refresh_btn = QPushButton("Refresh Ports")
+        self.refresh_btn.clicked.connect(self.refresh_serial_ports)
         
-        self.count = 0
-        self.text_label = QLabel("I Was not clicked yet!")
-        self.button = QPushButton("Increment Count")
-        self.button.clicked.connect(lambda: self.update_label())
+        self.connect_btn = QPushButton("Connect Serial")
+        self.connect_btn.clicked.connect(self.connect_serial)
+        
+        self.send_btn = QPushButton("Send Data")
+        self.send_btn.clicked.connect(self.send_data)
+        self.send_btn.setEnabled(False)
+        
+        self.serial_log = QTextEdit()
+        self.serial_log.setReadOnly(True)
+
+        serial_controls = QHBoxLayout()
+        serial_controls.addWidget(self.port_dropdown)
+        serial_controls.addWidget(self.refresh_btn)
+        serial_controls.addWidget(self.connect_btn)
+        serial_controls.addWidget(self.send_btn)
 
         # Set up the layout
         layout = QVBoxLayout()
-        layout.addWidget(self.text_label)
-        layout.addWidget(self.button)
-        layout.addWidget(self.image_label)
+        layout.addLayout(video_layout)
+        layout.addLayout(serial_controls)
         self.setLayout(layout)
         
         # Create and start the video thread
@@ -85,9 +56,48 @@ class MainWindow(QWidget):
         self.thread.change_pixmap_signal.connect(self.update_image)
         self.thread.start()
     
-    def update_label(self):
-        self.count += 1
-        self.text_label.setText("I was clicked {} times!".format(self.count))
+    def refresh_serial_ports(self):
+        """Discover available serial ports and populate the dropdown."""
+        current_ports = {self.port_dropdown.itemData(i) for i in range(self.port_dropdown.count())}
+        new_ports = {port.device for port in pySerial.tools.list_ports.comports()}
+
+        if current_ports != new_ports:
+            self.port_dropdown.clear()
+            for port_info in pySerial.tools.list_ports.comports():
+                if port_info.description != "n/a":
+                    self.port_dropdown.addItem(f"{port_info.device} - {port_info.description}", port_info.device)
+    
+    def connect_serial(self):
+        """Connect to the serial port selected from the dropdown."""
+        if self.serial_port and self.serial_port.is_open:
+            self.serial_port.close()
+        port = self.port_dropdown.currentData()
+        try:
+            self.serial_port = pySerial.Serial(port, baudrate=115200, timeout=1)
+            self.serial_log.append(f"Connected to serial port: {port}")
+            self.send_btn.setEnabled(True)
+        except Exception as e:
+            self.serial_log.append(f"Error connecting to {port}: {e}")
+            self.send_btn.setEnabled(False)
+    
+    def send_data(self):
+        """Send a predefined ASCII message via the serial port."""
+        if not self.serial_port or not self.serial_port.is_open:
+            self.serial_log.append("Serial port not connected!")
+            return
+
+        self.serial_log.append("Sending data...")
+        task = SendDataTask(
+            self.serial_port.portstr,
+            115200,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        )
+        QThreadPool.globalInstance().start(task)
+        self.serial_log.append("Data sent successfully!")
 
     @pyqtSlot(QImage)
     def update_image(self, qt_image):
