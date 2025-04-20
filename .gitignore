@@ -1,3 +1,5 @@
 .venv
 calibration_images/*
 *.png
+*.pyc
+__pycache__/
