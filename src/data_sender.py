@@ -20,7 +20,7 @@ class SendDataTask(QRunnable):
         serial_mutex.lock()  # Lock the mutex before accessing the serial port
         try:
             with serial.Serial(self.port, self.baudrate, timeout=1) as ser:
-                message = f"{self.x:.3f},{self.y:.3f},{self.rot:.3f},{self.xt:.3f},{self.yt:.3f}\n"
+                message = f"1,{self.x:.3f},{self.y:.3f},{self.rot:.3f},{self.xt:.3f},{self.yt:.3f}\n"
                 ser.write(message.encode('utf-8'))
                 print(f"Sent: {message.strip()}")
         except serial.SerialException as e:

@@ -16,7 +16,6 @@ class MainWindow(QWidget):
         self.serial_port = None
         
         self.image_label = QLabel()
-        self.image_label.setFixedSize(640, 480)
 
         # --- Layouts ---
         video_layout = QVBoxLayout()
@@ -45,10 +44,14 @@ class MainWindow(QWidget):
         serial_controls.addWidget(self.connect_btn)
         serial_controls.addWidget(self.send_btn)
 
+        log_widget = QHBoxLayout()
+        log_widget.addWidget(self.serial_log)
+
         # Set up the layout
         layout = QVBoxLayout()
         layout.addLayout(video_layout)
         layout.addLayout(serial_controls)
+        layout.addLayout(log_widget)
         self.setLayout(layout)
         
         # Create and start the video thread
@@ -90,11 +93,11 @@ class MainWindow(QWidget):
         task = SendDataTask(
             self.serial_port.portstr,
             115200,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0
+            x = 0,
+            y = 0,
+            rot = 90.0,
+            xt = 1.0,
+            yt = 1.0
         )
         QThreadPool.globalInstance().start(task)
         self.serial_log.append("Data sent successfully!")

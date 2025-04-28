@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QVBoxLayout, QHBoxLayout, QWidget
 )
 
-calibration_data_path = "/home/ramy-mawal/Desktop/Projects/rc-robot-ui/calibration_data.npz"
+calibration_data_path = "/home/ramy-mawal/Desktop/Projects/rc-robot-ui/calibration_data_latest.npz"
 
 class VideoThread(QThread):
     # Signal that will send a QImage to update the GUI
@@ -26,11 +26,13 @@ class VideoThread(QThread):
     def run(self):
         # Open the default camera
         cap = cv2.VideoCapture(2)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         npz_file = np.load(calibration_data_path) 
         camera_matrix = npz_file['camera_matrix']
         dist_coeff = npz_file['dist_coeffs']
         arucoParams = cv2.aruco.DetectorParameters()
-        marker_length = 0.015 
+        marker_length = 0.015 # TODO: ADJUST THIS TO CORRECT SIZE
 
         while self._running:  
             ret, frame = cap.read()
@@ -40,12 +42,16 @@ class VideoThread(QThread):
             undistorted_frame = cv2.undistort(frame, cameraMatrix=camera_matrix, distCoeffs=dist_coeff)
 
             gray = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2GRAY)
+            
             corners, ids, _ = aruco.detectMarkers(gray, self.dictionary, parameters=arucoParams)
             rgb_frame = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2RGB)
+
             img_drawn = aruco.drawDetectedMarkers(rgb_frame.copy(), corners, ids)
 
             if ids is not None:
                 rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, marker_length, camera_matrix, dist_coeff)
+                print(f"rvec: {rvec}")
+                print(f"tvec: {tvec}")
                 for i in range(len(ids)):
                     img_drawn = cv2.drawFrameAxes(img_drawn, camera_matrix, dist_coeff, rvec[i], tvec[i], 0.01)            
 
