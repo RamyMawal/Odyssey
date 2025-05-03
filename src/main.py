@@ -1,13 +1,18 @@
 import sys
-import serial as pySerial
+import serial
+import serial.tools.list_ports
+import global_data
 from data_sender import SendDataTask
+from position_updater import PositionUpdater
 from capture import VideoThread
 from PyQt6.QtCore import pyqtSlot, QThreadPool
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QApplication, QLabel, QPushButton, QComboBox,
-    QTextEdit, QVBoxLayout, QHBoxLayout, QWidget
+    QTextEdit, QVBoxLayout, QHBoxLayout, QWidget,
+    QLineEdit
 )
+
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -44,6 +49,21 @@ class MainWindow(QWidget):
         serial_controls.addWidget(self.connect_btn)
         serial_controls.addWidget(self.send_btn)
 
+        input_layout = QHBoxLayout()
+        self.marker_id_input = QLineEdit()
+        self.marker_id_input.setPlaceholderText("Marker ID")
+        self.x_input = QLineEdit()
+        self.y_input = QLineEdit()
+        self.update_btn = QPushButton("Update Position")
+        self.update_btn.clicked.connect(self.update_target_position)
+        input_layout.addWidget(QLabel("Marker ID:"))
+        input_layout.addWidget(self.marker_id_input)
+        input_layout.addWidget(QLabel("X:"))
+        input_layout.addWidget(self.x_input)
+        input_layout.addWidget(QLabel("Y:"))
+        input_layout.addWidget(self.y_input)
+        input_layout.addWidget(self.update_btn)
+
         log_widget = QHBoxLayout()
         log_widget.addWidget(self.serial_log)
 
@@ -51,6 +71,7 @@ class MainWindow(QWidget):
         layout = QVBoxLayout()
         layout.addLayout(video_layout)
         layout.addLayout(serial_controls)
+        layout.addLayout(input_layout)
         layout.addLayout(log_widget)
         self.setLayout(layout)
         
@@ -58,15 +79,19 @@ class MainWindow(QWidget):
         self.thread = VideoThread()
         self.thread.change_pixmap_signal.connect(self.update_image)
         self.thread.start()
+
+        self.position_thread = PositionUpdater()
+        QThreadPool.globalInstance().start(self.position_thread)
+
     
     def refresh_serial_ports(self):
         """Discover available serial ports and populate the dropdown."""
         current_ports = {self.port_dropdown.itemData(i) for i in range(self.port_dropdown.count())}
-        new_ports = {port.device for port in pySerial.tools.list_ports.comports()}
+        new_ports = {port.device for port in serial.tools.list_ports.comports()}
 
         if current_ports != new_ports:
             self.port_dropdown.clear()
-            for port_info in pySerial.tools.list_ports.comports():
+            for port_info in serial.tools.list_ports.comports():
                 if port_info.description != "n/a":
                     self.port_dropdown.addItem(f"{port_info.device} - {port_info.description}", port_info.device)
     
@@ -75,8 +100,9 @@ class MainWindow(QWidget):
         if self.serial_port and self.serial_port.is_open:
             self.serial_port.close()
         port = self.port_dropdown.currentData()
+        global_data.port = port
         try:
-            self.serial_port = pySerial.Serial(port, baudrate=115200, timeout=1)
+            self.serial_port = serial.Serial(port, baudrate=115200, timeout=1)
             self.serial_log.append(f"Connected to serial port: {port}")
             self.send_btn.setEnabled(True)
         except Exception as e:
@@ -85,22 +111,51 @@ class MainWindow(QWidget):
     
     def send_data(self):
         """Send a predefined ASCII message via the serial port."""
+        self.serial_log.clear()
         if not self.serial_port or not self.serial_port.is_open:
             self.serial_log.append("Serial port not connected!")
-            return
+            # return
+        
+        # self.serial_log.append(f"marker_positions: {global_data.marker_positions}")
 
-        self.serial_log.append("Sending data...")
-        task = SendDataTask(
-            self.serial_port.portstr,
-            115200,
-            x = 0,
-            y = 0,
-            rot = 90.0,
-            xt = 1.0,
-            yt = 1.0
-        )
-        QThreadPool.globalInstance().start(task)
-        self.serial_log.append("Data sent successfully!")
+        for marker_id in global_data.marker_positions:
+            x, y = global_data.marker_positions[marker_id]
+            self.serial_log.append(f"Marker ID: {marker_id}, X: {x}, Y: {y}")
+            self.serial_log.append("Sending data...")
+
+            try:
+                xt = float(self.x_input.text())
+            except ValueError:
+                xt = 0.0
+            try:
+                yt = float(self.y_input.text())
+            except ValueError:
+                yt = 0.0
+
+            task = SendDataTask(
+                self.serial_port.portstr,
+                115200,
+                id=marker_id,
+                x=x,
+                y=y,
+                rot=90.0,
+                xt=xt,
+                yt=yt,
+            )
+            QThreadPool.globalInstance().start(task)
+            self.serial_log.append(f"Data sent: {marker_id},{x:.3f},{y:.3f},90.0,{xt:.3f},{yt:.3f}")
+        
+        self.serial_log.append("All data sent successfully!")
+
+    def update_target_position(self):
+        """Update the target position for the selected marker."""
+        try:
+            marker_id = int(self.marker_id_input.text())
+            x = float(self.x_input.text())
+            y = float(self.y_input.text())
+            global_data.target_positions[marker_id] = (x, y)
+        except ValueError as e:
+            self.serial_log.append(f"Error: {e}")
 
     @pyqtSlot(QImage)
     def update_image(self, qt_image):
@@ -111,6 +166,7 @@ class MainWindow(QWidget):
         """Handle the window close event to properly terminate the thread."""
         self.thread.stop()
         self.thread.wait()
+        self.position_thread.stop()
         event.accept()
 
 if __name__ == '__main__':
