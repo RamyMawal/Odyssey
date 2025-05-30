@@ -23,7 +23,7 @@ class VideoThread(QThread):
         camera_matrix = npz_file['camera_matrix']
         dist_coeff = npz_file['dist_coeffs']
         arucoParams = cv2.aruco.DetectorParameters()
-        marker_length = 0.015  # Adjust this to the correct size
+        marker_length = 0.12  # in cm
 
         while self._running:
             ret, frame = cap.read()
@@ -38,13 +38,15 @@ class VideoThread(QThread):
             img_drawn = aruco.drawDetectedMarkers(rgb_frame.copy(), corners, ids)
 
             if ids is not None:
-                rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, marker_length, camera_matrix, dist_coeff)
-                global_data.marker_positions = {}  # Clear previous positions
+                rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(corners, marker_length, camera_matrix, dist_coeff)
+                global_data.marker_positions = {} 
                 for i, marker_id in enumerate(ids.flatten()):
-                    img_drawn = cv2.drawFrameAxes(img_drawn, camera_matrix, dist_coeff, rvec[i], tvec[i], 0.01)
-                    #Multiply by 10 for better coordinates
-                    x, y, _ = tvec[i][0]
-                    global_data.marker_positions[marker_id] = (x * 10, y * 10)  # Store x and y positions
+                    img_drawn = cv2.drawFrameAxes(img_drawn, camera_matrix, dist_coeff, rvecs[i], tvecs[i], 0.01)
+                    x, y, _ = tvecs[i][0]
+                    rvec = rvecs[i][0]
+                    R, _ = cv2.Rodrigues(rvec)
+                    yaw = np.arctan2(R[1,0], R[0,0])
+                    global_data.marker_positions[marker_id] = (x, y , yaw)  
 
             h, w, ch = img_drawn.shape
             bytes_per_line = ch * w

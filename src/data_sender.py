@@ -12,7 +12,7 @@ class SendDataTask(QRunnable):
         self.id = id
         self.x = x
         self.y = y
-        self.rot = rot
+        self.rot = 90
         self.xt = xt
         self.yt = yt
 

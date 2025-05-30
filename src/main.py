@@ -2,7 +2,6 @@ import sys
 import serial
 import serial.tools.list_ports
 import global_data
-from data_sender import SendDataTask
 from position_updater import PositionUpdater
 from capture import VideoThread
 from PyQt6.QtCore import pyqtSlot, QThreadPool
@@ -36,10 +35,6 @@ class MainWindow(QWidget):
         self.connect_btn = QPushButton("Connect Serial")
         self.connect_btn.clicked.connect(self.connect_serial)
         
-        self.send_btn = QPushButton("Send Data")
-        self.send_btn.clicked.connect(self.send_data)
-        self.send_btn.setEnabled(False)
-        
         self.serial_log = QTextEdit()
         self.serial_log.setReadOnly(True)
 
@@ -47,7 +42,6 @@ class MainWindow(QWidget):
         serial_controls.addWidget(self.port_dropdown)
         serial_controls.addWidget(self.refresh_btn)
         serial_controls.addWidget(self.connect_btn)
-        serial_controls.addWidget(self.send_btn)
 
         input_layout = QHBoxLayout()
         self.marker_id_input = QLineEdit()
@@ -86,14 +80,11 @@ class MainWindow(QWidget):
     
     def refresh_serial_ports(self):
         """Discover available serial ports and populate the dropdown."""
-        current_ports = {self.port_dropdown.itemData(i) for i in range(self.port_dropdown.count())}
-        new_ports = {port.device for port in serial.tools.list_ports.comports()}
 
-        if current_ports != new_ports:
-            self.port_dropdown.clear()
-            for port_info in serial.tools.list_ports.comports():
-                if port_info.description != "n/a":
-                    self.port_dropdown.addItem(f"{port_info.device} - {port_info.description}", port_info.device)
+        self.port_dropdown.clear()
+        for port_info in serial.tools.list_ports.comports():
+            if port_info.description != "n/a":
+                self.port_dropdown.addItem(f"{port_info.device} - {port_info.description}", port_info.device)
     
     def connect_serial(self):
         """Connect to the serial port selected from the dropdown."""
@@ -104,48 +95,8 @@ class MainWindow(QWidget):
         try:
             self.serial_port = serial.Serial(port, baudrate=115200, timeout=1)
             self.serial_log.append(f"Connected to serial port: {port}")
-            self.send_btn.setEnabled(True)
         except Exception as e:
             self.serial_log.append(f"Error connecting to {port}: {e}")
-            self.send_btn.setEnabled(False)
-    
-    def send_data(self):
-        """Send a predefined ASCII message via the serial port."""
-        self.serial_log.clear()
-        if not self.serial_port or not self.serial_port.is_open:
-            self.serial_log.append("Serial port not connected!")
-            # return
-        
-        # self.serial_log.append(f"marker_positions: {global_data.marker_positions}")
-
-        for marker_id in global_data.marker_positions:
-            x, y = global_data.marker_positions[marker_id]
-            self.serial_log.append(f"Marker ID: {marker_id}, X: {x}, Y: {y}")
-            self.serial_log.append("Sending data...")
-
-            try:
-                xt = float(self.x_input.text())
-            except ValueError:
-                xt = 0.0
-            try:
-                yt = float(self.y_input.text())
-            except ValueError:
-                yt = 0.0
-
-            task = SendDataTask(
-                self.serial_port.portstr,
-                115200,
-                id=marker_id,
-                x=x,
-                y=y,
-                rot=90.0,
-                xt=xt,
-                yt=yt,
-            )
-            QThreadPool.globalInstance().start(task)
-            self.serial_log.append(f"Data sent: {marker_id},{x:.3f},{y:.3f},90.0,{xt:.3f},{yt:.3f}")
-        
-        self.serial_log.append("All data sent successfully!")
 
     def update_target_position(self):
         """Update the target position for the selected marker."""
