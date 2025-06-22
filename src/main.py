@@ -3,7 +3,7 @@ import serial
 import serial.tools.list_ports
 import global_data
 from position_updater import PositionUpdater
-from capture import VideoThread
+from observer import VideoThread
 from PyQt6.QtCore import pyqtSlot, QThreadPool
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (

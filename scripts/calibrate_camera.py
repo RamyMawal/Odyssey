@@ -50,8 +50,8 @@ def calibrate_camera_charuco():
                 all_ids.append(charuco_ids)
                 
                 # Optional: Draw the Charuco corners and display for verification
-                img_drawn = aruco.drawDetectedMarkers(img.copy(), corners, ids)
-                img_drawn = aruco.drawDetectedCornersCharuco(img_drawn, charuco_corners, charuco_ids)
+                # img_drawn = aruco.drawDetectedMarkers(img.copy(), corners, ids)
+                # img_drawn = aruco.drawDetectedCornersCharuco(img_drawn, charuco_corners, charuco_ids)
                 # cv2.imshow('Charuco Corners', img_drawn)
                 # cv2.waitKey(100)
         else:
@@ -80,7 +80,7 @@ def calibrate_camera_charuco():
     print(f"\nRe-projection error: {ret}")
 
     # Optionally, undistort one of the images to visually validate calibration
-    test_img = cv2.imread(images[len(images) // 2])  # Use a middle image for testing
+    test_img = cv2.imread(images[1])  # Use a middle image for testing
     undistorted_img = cv2.undistort(test_img, camera_matrix, dist_coeffs, None, camera_matrix)
     cv2.imwrite("undistorted_img.png", undistorted_img)
     cv2.imwrite("test_img.png", test_img)
@@ -88,12 +88,12 @@ def calibrate_camera_charuco():
     res_undistorted_img  = cv2.resize(undistorted_img, dsize=(1280, 720), interpolation=cv2.INTER_CUBIC)
     cv2.imshow("Original Image", res_test_img)
     cv2.imshow("Undistorted Image", res_undistorted_img)
-    cv2.waitKey(5000)
+    cv2.waitKey(10000)
     cv2.destroyAllWindows()
 
     # Save calibration results to a file (e.g., using NumPy's savez)
-    # np.savez("calibration_data.npz", camera_matrix=camera_matrix, dist_coeffs=dist_coeffs,
-    #          rvecs=rvecs, tvecs=tvecs)
+    np.savez("calibration_data.npz", camera_matrix=camera_matrix, dist_coeffs=dist_coeffs,
+             rvecs=rvecs, tvecs=tvecs)
 
 
 

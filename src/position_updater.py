@@ -1,5 +1,4 @@
 import global_data
-from data_sender import SendDataTask
 from PyQt6.QtCore import QRunnable, QMutex
 import serial
 import time
@@ -21,13 +20,13 @@ class PositionUpdater(QRunnable):
                 continue
 
             for marker_id, (x, y, yaw) in global_data.marker_positions.items():
-                print(f"Position for Marker ID: {marker_id}, X: {x:.3f}, Y: {y:.3f}")
+                # print(f"Position for Marker ID: {marker_id}, X: {x:.3f}, Y: {y:.3f}")
                 if marker_id not in global_data.target_positions:
                     xt = x
                     yt = y
                 else:
                     xt, yt = global_data.target_positions[marker_id]
-                print(f"Target Position for Marker ID: {marker_id}, X: {xt:.3f}, Y: {yt:.3f}, yaw: {yaw:.3f}")
+                # print(f"Target Position for Marker ID: {marker_id}, X: {xt:.3f}, Y: {yt:.3f}, yaw: {yaw:.3f}")
 
                 serial_mutex.lock()
                 try:
@@ -40,7 +39,7 @@ class PositionUpdater(QRunnable):
                 finally:
                     serial_mutex.unlock()
                     
-            time.sleep(0.1)
+            time.sleep(0.05)
         print("Stopping PositionUpdater")
 
             
