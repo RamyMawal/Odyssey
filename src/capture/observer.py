@@ -1,20 +1,26 @@
+from typing import Dict
 import cv2
 import cv2.aruco as aruco
 import numpy as np
-import global_data
+from cv2.typing import MatLike
+from stores.agent_pose_store import AgentPose
+from stores.controller_context import ControllerContext
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QImage
 
 calibration_data_path = "/home/ramy-mawal/Desktop/Projects/rc-robot-ui/calibration_data_latest.npz"
-marker_length = 0.12  # in cm
+marker_length = 0.12  # in meters
 
-class VideoThread(QThread):
+class ObserverThread(QThread):
     change_pixmap_signal = pyqtSignal(QImage)
+    frame_signal = pyqtSignal(object, object, object)
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_7X7_100)
+    pose_dict = Dict[int, AgentPose]
 
-    def __init__(self):
+    def __init__(self, context:ControllerContext):
         super().__init__()
         self._running = True
+        self.context = context
 
     def run(self):
         cap = cv2.VideoCapture(2)
@@ -35,24 +41,13 @@ class VideoThread(QThread):
             corners, ids, _ = aruco.detectMarkers(gray, self.dictionary, parameters=arucoParams)
             rgb_frame = cv2.cvtColor(undistorted_frame, cv2.COLOR_BGR2RGB)
 
-            img_drawn = aruco.drawDetectedMarkers(rgb_frame.copy(), corners, ids)
+            rgb_frame = aruco.drawDetectedMarkers(rgb_frame, corners, ids)
 
-            if ids is not None:
-                rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(corners, marker_length, camera_matrix, dist_coeff)
-                global_data.marker_positions = {} 
-                for i, marker_id in enumerate(ids.flatten()):
-                    img_drawn = cv2.drawFrameAxes(img_drawn, camera_matrix, dist_coeff, rvecs[i], tvecs[i], 0.01)
-                    x, y, _ = tvecs[i][0]
-                    rvec = rvecs[i][0]
-                    R, _ = cv2.Rodrigues(rvec)
-                    yaw = np.arctan2(R[1,0], R[0,0])
-                    global_data.marker_positions[marker_id] = (x, y , yaw)  
+            self.context.frame_data_store.update(ids=ids, corners=corners)
 
-            emit_image = cv2.resize(img_drawn, dsize=(1280, 720), interpolation=cv2.INTER_CUBIC)
-
-            h, w, ch = emit_image.shape
+            h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
-            qt_image = QImage(emit_image.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+            qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
             self.change_pixmap_signal.emit(qt_image)
 
         cap.release()
