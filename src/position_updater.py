@@ -21,14 +21,16 @@ class PositionUpdater(QThread):
                 time.sleep(0.5)
                 continue
 
+            targets = self.context.agent_target_store.get_all()
+
             for marker_id, pose in self.context.agent_pose_store.get_all().items():
                 print(f"Position for Marker ID: {marker_id}, X: {pose.x:.3f}, Y: {pose.y:.3f}, yaw: {pose.theta:.3f}")
-                if marker_id not in global_data.target_positions:
+                if marker_id not in targets:
                     xt = pose.x
                     yt = pose.y
                 else:
-                    xt, yt = global_data.target_positions[marker_id]
-                # print(f"Target Position for Marker ID: {marker_id}, X: {xt:.3f}, Y: {yt:.3f}, yaw: {yaw:.3f}")
+                    target_pose = targets[marker_id]
+                    xt, yt = target_pose.x, target_pose.y
 
                 serial_mutex.lock()
                 try:

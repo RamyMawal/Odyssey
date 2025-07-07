@@ -1,15 +1,14 @@
 from typing import Dict
+import pathlib
 import cv2
 import cv2.aruco as aruco
 import numpy as np
-from cv2.typing import MatLike
 from stores.agent_pose_store import AgentPose
 from stores.controller_context import ControllerContext
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QImage
 
-calibration_data_path = "/home/ramy-mawal/Desktop/Projects/rc-robot-ui/calibration_data_latest.npz"
-marker_length = 0.12  # in meters
+calibration_data_path = "../calibration_data_latest.npz"
 
 class ObserverThread(QThread):
     change_pixmap_signal = pyqtSignal(QImage)
@@ -26,7 +25,8 @@ class ObserverThread(QThread):
         cap = cv2.VideoCapture(2)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2560)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1440)
-        npz_file = np.load(calibration_data_path)
+        path = pathlib.PosixPath(calibration_data_path)
+        npz_file = np.load(path)
         camera_matrix = npz_file['camera_matrix']
         dist_coeff = npz_file['dist_coeffs']
         arucoParams = cv2.aruco.DetectorParameters()

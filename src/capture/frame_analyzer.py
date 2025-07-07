@@ -11,20 +11,19 @@ from capture.observer import ObserverThread
 from stores.agent_pose_store import AgentPose
 from stores.controller_context import ControllerContext
 
-calibration_data_path = "/home/ramy-mawal/Desktop/Projects/rc-robot-ui/calibration_data_latest.npz"
+calibration_data_path = "../calibration_data_latest.npz"
 marker_length = 0.12  # in meters
 
 
 class FrameAnalyzer(QThread):
-    _isRunning: bool
-    # change_pixmap_signal = pyqtSignal(QImage)
+    _running: bool
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_7X7_100)
     pose_dict = Dict[int, AgentPose]
 
     def __init__(self, observer: ObserverThread, context: ControllerContext):
         super().__init__()
         self.context = context
-        self._isRunning = True
+        self._running = True
         npz_file = np.load(calibration_data_path)
         self.camera_matrix = npz_file['camera_matrix']
         self.dist_coeff = npz_file['dist_coeffs']
@@ -32,7 +31,7 @@ class FrameAnalyzer(QThread):
         self.pose_dict = {}
 
     def run(self):
-        while(self._isRunning):
+        while(self._running):
             ids, corners = self.context.frame_data_store.get()
             if ids is not None:
                 rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(corners, marker_length, self.camera_matrix, self.dist_coeff)
@@ -45,11 +44,11 @@ class FrameAnalyzer(QThread):
                 time.sleep(0.1)
 
     def stop(self):
-        self._isRunning = False
+        self._running = False
 
 
 
-def process_marker(context, i, marker_id, rvecs, tvecs):
+def process_marker(context: ControllerContext, i, marker_id, rvecs, tvecs):
     x, y, _ = tvecs[i][0]
     rvec = rvecs[i][0]
     R, _ = cv2.Rodrigues(rvec)

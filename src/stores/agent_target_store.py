@@ -4,7 +4,8 @@ from dataclasses import dataclass
 
 from models.vectors import Pose2D
 
-class AgentPoseStore:
+
+class AgentTargetStore:
     def __init__(self):
         self._lock = Lock()
         self._poses: Dict[int, Pose2D] = {}

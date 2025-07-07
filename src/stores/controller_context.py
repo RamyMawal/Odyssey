@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from stores.agent_target_store import AgentTargetStore
 from stores.formation_state_store import FormationStateStore
 from stores.frame_data_store import FrameDataStore
 from stores.link_pose_store import LinkPoseStore
@@ -11,16 +12,15 @@ class ControllerContext:
     link_pose_store: LinkPoseStore
     formation_state_store: FormationStateStore
     frame_data_store: FrameDataStore
-    agent_command_queue: queue.Queue
-    link_target_queue: queue.Queue
+    agent_target_store: AgentTargetStore
+    
 
     def __init__(self):
         self.agent_pose_store = AgentPoseStore()
         self.link_pose_store = LinkPoseStore()
         self.formation_state_store = FormationStateStore()
         self.frame_data_store = FrameDataStore()
-        self.agent_command_queue = queue.Queue()
-        self.link_target_queue = queue.Queue()
+        self.agent_target_store = AgentTargetStore()
 
 
 

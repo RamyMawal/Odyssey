@@ -14,8 +14,9 @@ from capture.frame_analyzer import FrameAnalyzer
 from configuration_manager import ConfigurationManager
 from enums.configurations.command_type import CommandType
 from enums.configurations.formation_shape import FormationShape
+from link_controller import LinkControllerThread
 from models.configuration_message import ConfigurationMessage
-from models.vectors import MovementVector
+from models.vectors import Pose2D
 from stores.controller_context import ControllerContext
 import stores.global_data as global_data
 from position_updater import PositionUpdater
@@ -24,7 +25,6 @@ from global_supervisor import GlobalSupervisor
 
 
 class MainWindow(QWidget):
-    update_configuration_signal = pyqtSignal(ConfigurationMessage)
 
     def __init__(self):
         super().__init__()
@@ -115,36 +115,42 @@ class MainWindow(QWidget):
         self.observer_thread.start()
 
         self.analyzer_thread = FrameAnalyzer(self.observer_thread, self.context)
-        # self.analyzer_thread.change_pixmap_signal.connect(self.update_image)
         self.analyzer_thread.start()
 
-        self.configuration_manager_thread = ConfigurationManager(self.context)
+        self.configuration_manager = ConfigurationManager()
 
         self.position_thread = PositionUpdater(self.context)
         self.position_thread.start()
 
-        self.global_supervisor_thread = GlobalSupervisor(self.context)
+        self.global_supervisor_thread = GlobalSupervisor(self.context, self.configuration_manager)
         self.global_supervisor_thread.start()
+
+        self.link_0_thread = LinkControllerThread(0, self.context)
+        self.link_1_thread = LinkControllerThread(1, self.context)
+        self.link_2_thread = LinkControllerThread(2, self.context)
+
+        self.link_0_thread.start() 
+        self.link_1_thread.start() 
+        self.link_2_thread.start() 
+
 
 
     def handle_send_command(self):
-        message:ConfigurationMessage = ConfigurationMessage()
+        message:ConfigurationMessage = ConfigurationMessage(CommandType.CONFIGURE, FormationShape.LINE, Pose2D(0,0,0))
         command: CommandType = self.command_dropdown.currentData()
-        if command == CommandType.CONFIGURE:
-            formation: FormationShape = self.formation_dropdown.currentData()
-            message.command = command
-            message.data = formation
-        elif command == CommandType.MOVE:
-            try:
-                x = float(self.x_input.text())
-                y = float(self.y_input.text())
-                theta = float(self.theta_input.text())
-                mv = MovementVector(x, y, theta)
-                message.command = command
-                message.data = mv
-            except ValueError:
-                self.serial_log.append("Invalid input for x, y, or theta.")
-        self.update_configuration_signal.emit(message)
+        formation: FormationShape = self.formation_dropdown.currentData()
+        message.command = command
+        message.shape = formation
+        try:
+            x = float(self.x_input.text())
+            y = float(self.y_input.text())
+            theta = float(self.theta_input.text())
+            mv = Pose2D(x, y, theta)
+            message.target = mv
+        except ValueError:
+            self.serial_log.append("Invalid input for x, y, or theta.")
+            message.target = Pose2D(0,0,0)
+        self.configuration_manager.update_configuration(message)
 
     def refresh_serial_ports(self):
         """Discover available serial ports and populate the dropdown."""
@@ -180,15 +186,6 @@ class MainWindow(QWidget):
     def update_image(self, qt_image):
         """Receive QImage from the thread and update the label."""
         self.image_label.setPixmap(QPixmap.fromImage(qt_image))
-
-    # @pyqtSlot(object)
-    # def update_image(self, frame: MatLike):
-    #     emit_image = cv2.resize(frame, dsize=(1280, 720), interpolation=cv2.INTER_CUBIC)
-
-    #     h, w, ch = emit_image.shape
-    #     bytes_per_line = ch * w
-    #     qt_image = QImage(emit_image.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-    #     self.image_label.setPixmap(QPixmap.fromImage(qt_image))
     
     def closeEvent(self, event):
         """Handle the window close event to properly terminate the thread."""
