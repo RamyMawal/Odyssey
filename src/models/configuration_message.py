@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass
 
 from enums.configurations.command_type import CommandType

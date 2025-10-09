@@ -13,7 +13,7 @@ class ControllerContext:
     formation_state_store: FormationStateStore
     frame_data_store: FrameDataStore
     agent_target_store: AgentTargetStore
-    
+    port: str  
 
     def __init__(self):
         self.agent_pose_store = AgentPoseStore()
@@ -21,6 +21,7 @@ class ControllerContext:
         self.formation_state_store = FormationStateStore()
         self.frame_data_store = FrameDataStore()
         self.agent_target_store = AgentTargetStore()
+        self.port = ""  
 
 
 

@@ -25,9 +25,11 @@ class LinkControllerThread(QThread):
         self._running = True
 
     def run(self):
+        print(f"Running LinkControllerThread for link {self.link_id}")
         while self._running:
             link_pose = self.context.link_pose_store.get(self.link_id)
             if(link_pose is None):
+                print(f"Link {self.link_id} pose not available, waiting...")
                 time.sleep(0.5)
                 continue
 
@@ -47,4 +49,11 @@ class LinkControllerThread(QThread):
 
                 agent_poses[i] = Pose2D(pose[0], pose[1], 0)
 
+            for agent_id, pose in agent_poses.items():
+                print(f"Link {self.link_id} updating agent {agent_id} pose: {pose.x:.3f}, {pose.y:.3f}, {pose.theta:.3f}")
+
             self.context.agent_target_store.update_batch(agent_poses)
+
+    def stop(self):
+        self._running = False
+        print(f"Stopping LinkControllerThread for link {self.link_id}")

@@ -24,9 +24,6 @@ class GlobalSupervisor(QThread):
     def run(self):
 
         while(self._running):
-            #Do the formation calculations
-            # descriptor = self.context.formation_state_store.get()
-
             _, shape, target = self.config_manager.get_current_config()
 
             joints = self.get_joint_angles(shape)
@@ -34,6 +31,8 @@ class GlobalSupervisor(QThread):
             r_d, q_d = self.get_coordinates(target)
 
             self.current_formation = FormationDescriptor(r_d, q_d, joints)
+
+            # print(f"Global Supervisor: {self.current_formation}")
 
             self.context.formation_state_store.update(self.current_formation)
             time.sleep(0.1)
@@ -47,9 +46,9 @@ class GlobalSupervisor(QThread):
             case FormationShape.LINE :
                 return [0,0]
             case FormationShape.SQUARE:
-                return [math.radians(-90),math.radians(-90)]
+                return [math.radians(90),math.radians(90)]
             case FormationShape.TRIANGLE:
-                return [math.radians(-60), math.radians(-30)]
+                return [math.radians(60), math.radians(30)]
             case FormationShape.ARROW:
-                return [math.radians(-120), math.radians(-40)]
+                return [math.radians(120), math.radians(40)]
                 

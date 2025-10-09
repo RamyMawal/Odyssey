@@ -1,31 +1,40 @@
+import math
 import sys
-import serial
-import serial.tools.list_ports
-import cv2
-from cv2.typing import MatLike
-from PyQt6.QtCore import pyqtSlot, QThreadPool, pyqtSignal
+
+from PyQt6.QtCore import QThreadPool, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
-    QApplication, QLabel, QPushButton, QComboBox,
-    QTextEdit, QVBoxLayout, QHBoxLayout, QWidget,
-    QLineEdit, QListWidget, QListWidgetItem, QFrame
+    QApplication,
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
+
+# import cv2
+# from cv2.typing import MatLike
+import serial
+import serial.tools.list_ports
+
 from capture.frame_analyzer import FrameAnalyzer
+from capture.observer import ObserverThread
 from configuration_manager import ConfigurationManager
 from enums.configurations.command_type import CommandType
 from enums.configurations.formation_shape import FormationShape
+from formation_dispatcher import FormationDispatcher
+from global_supervisor import GlobalSupervisor
 from link_controller import LinkControllerThread
 from models.configuration_message import ConfigurationMessage
 from models.vectors import Pose2D
-from stores.controller_context import ControllerContext
-import stores.global_data as global_data
 from position_updater import PositionUpdater
-from capture.observer import ObserverThread
-from global_supervisor import GlobalSupervisor
+from stores.controller_context import ControllerContext
 
 
 class MainWindow(QWidget):
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Odyssey Formation Control")
@@ -37,17 +46,16 @@ class MainWindow(QWidget):
         video_layout = QVBoxLayout()
         video_layout.addWidget(self.image_label)
 
-
         # --- Serial Port Section ---
         self.port_dropdown = QComboBox()
         self.refresh_serial_ports()
 
         self.refresh_btn = QPushButton("Refresh Ports")
         self.refresh_btn.clicked.connect(self.refresh_serial_ports)
-        
+
         self.connect_btn = QPushButton("Connect Serial")
         self.connect_btn.clicked.connect(self.connect_serial)
-        
+
         self.serial_log = QTextEdit()
         self.serial_log.setReadOnly(True)
 
@@ -105,8 +113,6 @@ class MainWindow(QWidget):
 
         self.initialize_threads()
 
-
-
     def initialize_threads(self):
         self.context = ControllerContext()
 
@@ -122,21 +128,26 @@ class MainWindow(QWidget):
         self.position_thread = PositionUpdater(self.context)
         self.position_thread.start()
 
-        self.global_supervisor_thread = GlobalSupervisor(self.context, self.configuration_manager)
+        self.global_supervisor_thread = GlobalSupervisor(
+            self.context, self.configuration_manager
+        )
         self.global_supervisor_thread.start()
+
+        self.formation_dispatcher_thread = FormationDispatcher(self.context)
+        self.formation_dispatcher_thread.start()
 
         self.link_0_thread = LinkControllerThread(0, self.context)
         self.link_1_thread = LinkControllerThread(1, self.context)
         self.link_2_thread = LinkControllerThread(2, self.context)
 
-        self.link_0_thread.start() 
-        self.link_1_thread.start() 
-        self.link_2_thread.start() 
-
-
+        self.link_0_thread.start()
+        self.link_1_thread.start()
+        self.link_2_thread.start()
 
     def handle_send_command(self):
-        message:ConfigurationMessage = ConfigurationMessage(CommandType.CONFIGURE, FormationShape.LINE, Pose2D(0,0,0))
+        message: ConfigurationMessage = ConfigurationMessage(
+            CommandType.CONFIGURE, FormationShape.LINE, Pose2D(0, 0, 0)
+        )
         command: CommandType = self.command_dropdown.currentData()
         formation: FormationShape = self.formation_dropdown.currentData()
         message.command = command
@@ -145,11 +156,12 @@ class MainWindow(QWidget):
             x = float(self.x_input.text())
             y = float(self.y_input.text())
             theta = float(self.theta_input.text())
+            theta = math.radians(theta)
             mv = Pose2D(x, y, theta)
             message.target = mv
         except ValueError:
             self.serial_log.append("Invalid input for x, y, or theta.")
-            message.target = Pose2D(0,0,0)
+            message.target = Pose2D(0, 0, 0)
         self.configuration_manager.update_configuration(message)
 
     def refresh_serial_ports(self):
@@ -158,48 +170,49 @@ class MainWindow(QWidget):
         self.port_dropdown.clear()
         for port_info in serial.tools.list_ports.comports():
             if port_info.description != "n/a":
-                self.port_dropdown.addItem(f"{port_info.device} - {port_info.description}", port_info.device)
-    
+                self.port_dropdown.addItem(
+                    f"{port_info.device} - {port_info.description}", port_info.device
+                )
+
     def connect_serial(self):
         """Connect to the serial port selected from the dropdown."""
         if self.serial_port and self.serial_port.is_open:
             self.serial_port.close()
         port = self.port_dropdown.currentData()
-        global_data.port = port
+        self.context.port = port
         try:
             self.serial_port = serial.Serial(port, baudrate=115200, timeout=1)
             self.serial_log.append(f"Connected to serial port: {port}")
         except Exception as e:
             self.serial_log.append(f"Error connecting to {port}: {e}")
 
-    def update_target_position(self):
-        """Update the target position for the selected marker."""
-        try:
-            marker_id = int(self.marker_id_input.text())
-            x = float(self.x_input.text())
-            y = float(self.y_input.text())
-            global_data.target_positions[marker_id] = (x, y)
-        except ValueError as e:
-            self.serial_log.append(f"Error: {e}")
-
     @pyqtSlot(QImage)
     def update_image(self, qt_image):
         """Receive QImage from the thread and update the label."""
         self.image_label.setPixmap(QPixmap.fromImage(qt_image))
-    
+
     def closeEvent(self, event):
         """Handle the window close event to properly terminate the thread."""
         self.observer_thread.stop()
         self.analyzer_thread.stop()
         self.position_thread.stop()
         self.global_supervisor_thread.stop()
+        self.formation_dispatcher_thread.stop()
+        self.link_0_thread.stop()
+        self.link_1_thread.stop()
+        self.link_2_thread.stop()
         self.observer_thread.wait()
         self.analyzer_thread.wait()
         self.position_thread.wait()
         self.global_supervisor_thread.wait()
+        self.formation_dispatcher_thread.wait()
+        self.link_0_thread.wait()
+        self.link_1_thread.wait()
+        self.link_2_thread.wait()
         event.accept()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()

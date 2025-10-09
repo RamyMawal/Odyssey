@@ -3,7 +3,7 @@ import pathlib
 import cv2
 import cv2.aruco as aruco
 import numpy as np
-from stores.agent_pose_store import AgentPose
+from models.vectors import Pose2D
 from stores.controller_context import ControllerContext
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QImage
@@ -14,7 +14,6 @@ class ObserverThread(QThread):
     change_pixmap_signal = pyqtSignal(QImage)
     frame_signal = pyqtSignal(object, object, object)
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_7X7_100)
-    pose_dict = Dict[int, AgentPose]
 
     def __init__(self, context:ControllerContext):
         super().__init__()
