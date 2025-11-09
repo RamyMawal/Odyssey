@@ -6,6 +6,9 @@ from models.vectors import Pose2D
 from stores.controller_context import ControllerContext
 
 
+link_length = 0.4
+
+
 class FormationDispatcher(QThread):
     pass
 
@@ -32,8 +35,8 @@ class FormationDispatcher(QThread):
                 [[cos(q_d), -sin(q_d), r_d_x], [sin(q_d), cos(q_d), r_d_y], [0, 0, 1]]
             )
 
-            X_0_1 = np.eye(3) @ R(joints[0]) @ T(1)
-            X_0_2 = X_0_1 @ R(joints[1]) @ T(1)
+            X_0_1 = np.eye(3) @ R(joints[0]) @ T(link_length)
+            X_0_2 = X_0_1 @ R(joints[1]) @ T(link_length)
 
             X_0 = X_r
             X_1 = X_r @ X_0_1
@@ -47,15 +50,15 @@ class FormationDispatcher(QThread):
             q_1 = q_0 + joints[0]
             q_2 = q_1 + joints[1]
 
-            print(
-                f"Dispatching poses: {r_d_0}, {r_d_1}, {r_d_2} with angles: {q_0}, {q_1}, {q_2}"
-            )
+            # print(
+            #     f"Dispatching poses: {r_d_0}, {r_d_1}, {r_d_2} with angles: {q_0}, {q_1}, {q_2}"
+            # )
 
             self.context.link_pose_store.update(0, Pose2D(r_d_0[0], r_d_0[1], q_0))
             self.context.link_pose_store.update(1, Pose2D(r_d_1[0], r_d_1[1], q_1))
             self.context.link_pose_store.update(2, Pose2D(r_d_2[0], r_d_2[1], q_2))
 
-            time.sleep(0.1)
+            time.sleep(0.5)
 
     def stop(self):
         self._running = False
