@@ -1,9 +1,10 @@
+import logging
 from stores.controller_context import ControllerContext
 from PyQt6.QtCore import QThread, QMutex
 import serial
 import time
 
-serial_mutex = QMutex()
+logger = logging.getLogger(__name__)
 
 
 class PositionUpdater(QThread):
@@ -11,21 +12,41 @@ class PositionUpdater(QThread):
         super().__init__()
         self._running = True
         self.context = context
+        self.serial_conn = None
+        self._current_port = None
+        self._mutex = QMutex()
 
     def run(self):
-        print("Running PositionUpdater")
+        logger.info("Running PositionUpdater")
         while self._running:
             if self.context.port is None or self.context.port == "":
                 time.sleep(0.5)
                 continue
 
+            # Check if port changed or connection needs to be established
+            if self._current_port != self.context.port:
+                if self.serial_conn and self.serial_conn.is_open:
+                    self.serial_conn.close()
+                self.serial_conn = None
+                self._current_port = self.context.port
+
+            # Open connection if needed
+            if self.serial_conn is None or not self.serial_conn.is_open:
+                try:
+                    self.serial_conn = serial.Serial(
+                        self.context.port, 115200, timeout=1
+                    )
+                    logger.info(f"Serial port opened: {self.context.port}")
+                except serial.SerialException as e:
+                    logger.error(f"Failed to open serial port: {e}")
+                    time.sleep(0.5)
+                    continue
+
             targets = self.context.agent_target_store.get_all()
 
             for marker_id, pose in self.context.agent_pose_store.get_all().items():
                 if pose is None:
-                    # continue
-                    # print(f"Marker {marker_id} has no position")
-                    message = f"0,{marker_id},0,0,0,0,0\n"
+                    continue
                 else:
                     if marker_id not in targets:
                         xt = pose.x
@@ -36,19 +57,25 @@ class PositionUpdater(QThread):
 
                     message = f"1,{marker_id},{pose.x:.3f},{pose.y:.3f},{pose.theta:.3f},{xt:.3f},{yt:.3f}\n"
 
-                print(message)
-                serial_mutex.lock()
+                logger.debug(message.strip())
+                self._mutex.lock()
                 try:
-                    with serial.Serial(self.context.port, 115200, timeout=1) as ser:
-                        ser.write(message.encode("utf-8"))
-                        # print(f"Sent: {message.strip()}")
+                    self.serial_conn.write(message.encode("utf-8"))
+                    logger.info(message)
                 except serial.SerialException as e:
-                    print(f"Serial error: {e}")
+                    logger.error(f"Serial error: {e}")
+                    # Connection lost, will reconnect on next iteration
+                    if self.serial_conn and self.serial_conn.is_open:
+                        self.serial_conn.close()
+                    self.serial_conn = None
                 finally:
-                    serial_mutex.unlock()
+                    self._mutex.unlock()
 
             time.sleep(0.05)
-        print("Stopping PositionUpdater")
+        logger.info("Stopping PositionUpdater")
 
     def stop(self):
         self._running = False
+        if self.serial_conn and self.serial_conn.is_open:
+            self.serial_conn.close()
+            logger.info("Serial port closed")

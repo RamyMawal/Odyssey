@@ -1,17 +1,16 @@
+import logging
 import time
 from math import cos, sin
 import numpy as np
 from PyQt6.QtCore import QThread
+from constants import LINK_LENGTH
 from models.vectors import Pose2D
 from stores.controller_context import ControllerContext
 
-
-link_length = 0.4
+logger = logging.getLogger(__name__)
 
 
 class FormationDispatcher(QThread):
-    pass
-
     def __init__(self, context: ControllerContext):
         super().__init__()
         self.context = context
@@ -19,24 +18,24 @@ class FormationDispatcher(QThread):
 
     def run(self):
         while self._running:
-            discriptor = self.context.formation_state_store.get()
+            descriptor = self.context.formation_state_store.get()
 
-            if discriptor is None:
+            if descriptor is None:
                 time.sleep(0.5)
                 continue
 
             (r_d_x, r_d_y), q_d, joints = (
-                discriptor.r_d,
-                discriptor.q_d,
-                discriptor.theta_d,
+                descriptor.r_d,
+                descriptor.q_d,
+                descriptor.theta_d,
             )
 
             X_r = np.array(
                 [[cos(q_d), -sin(q_d), r_d_x], [sin(q_d), cos(q_d), r_d_y], [0, 0, 1]]
             )
 
-            X_0_1 = np.eye(3) @ R(joints[0]) @ T(link_length)
-            X_0_2 = X_0_1 @ R(joints[1]) @ T(link_length)
+            X_0_1 = np.eye(3) @ R(joints[0]) @ T(LINK_LENGTH)
+            X_0_2 = X_0_1 @ R(joints[1]) @ T(LINK_LENGTH)
 
             X_0 = X_r
             X_1 = X_r @ X_0_1
@@ -62,14 +61,14 @@ class FormationDispatcher(QThread):
 
     def stop(self):
         self._running = False
-        print("Stopping FormationDispatcher")
+        logger.info("Stopping FormationDispatcher")
 
 
-def R(theta: float):
+def R(theta: float) -> np.ndarray:
     return np.array(
         [[cos(theta), -sin(theta), 0], [sin(theta), cos(theta), 0], [0, 0, 1]]
     )
 
 
-def T(L):
+def T(L: float) -> np.ndarray:
     return np.array([[1, 0, L], [0, 1, 0], [0, 0, 1]])

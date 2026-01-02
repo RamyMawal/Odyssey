@@ -1,3 +1,5 @@
+import logging
+import pathlib
 import time
 
 # from typing import Dict
@@ -8,12 +10,13 @@ from PyQt6.QtCore import QThread
 
 from concurrent.futures import ThreadPoolExecutor
 from capture.observer import ObserverThread
+from constants import MARKER_LENGTH, ALL_MARKER_IDS
 from models.vectors import Pose2D
 from stores.controller_context import ControllerContext
 
-calibration_data_path = "../calibration_data_latest.npz"
-marker_length = 0.12  # in meters
-all_ids = np.array([0, 1, 2, 3])
+logger = logging.getLogger(__name__)
+
+calibration_data_path = pathlib.Path(__file__).parent.parent.parent / "calibration_data_latest.npz"
 
 
 class FrameAnalyzer(QThread):
@@ -23,22 +26,35 @@ class FrameAnalyzer(QThread):
         super().__init__()
         self.context = context
         self._running = True
-        npz_file = np.load(calibration_data_path)
-        self.camera_matrix = npz_file["camera_matrix"]
-        self.dist_coeff = npz_file["dist_coeffs"]
+        self.calibration_loaded = False
+
+        try:
+            npz_file = np.load(calibration_data_path)
+            self.camera_matrix = npz_file["camera_matrix"]
+            self.dist_coeff = npz_file["dist_coeffs"]
+            self.calibration_loaded = True
+        except FileNotFoundError:
+            logger.error(f"Calibration file not found: {calibration_data_path}")
+        except Exception as e:
+            logger.error(f"Failed to load calibration data: {e}")
+
         self.arucoParams = cv2.aruco.DetectorParameters()
 
     def run(self):
+        if not self.calibration_loaded:
+            logger.error("FrameAnalyzer: Cannot run without calibration data")
+            return
+
         while self._running:
             ids, corners = self.context.frame_data_store.get()
             # print(ids)
             if ids is not None:
-                missing_ids = np.setdiff1d(all_ids, ids.flatten())
+                missing_ids = np.setdiff1d(ALL_MARKER_IDS, ids.flatten())
                 # print(missing_ids)
                 for id in missing_ids:
                     self.context.agent_pose_store.update(id, None)
                 rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(
-                    corners, marker_length, self.camera_matrix, self.dist_coeff
+                    corners, MARKER_LENGTH, self.camera_matrix, self.dist_coeff
                 )
                 with ThreadPoolExecutor() as executor:
                     executor.map(
@@ -46,7 +62,7 @@ class FrameAnalyzer(QThread):
                         enumerate(ids.flatten()),
                     )
             else:
-                for id in all_ids:
+                for id in ALL_MARKER_IDS:
                     self.context.agent_pose_store.update(id, None)
                 time.sleep(0.1)
 

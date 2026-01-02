@@ -1,7 +1,9 @@
+import logging
 import math
 import sys
 
-from PyQt6.QtCore import QThreadPool, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import pyqtSlot, Qt
+
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
@@ -15,13 +17,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-# import cv2
-# from cv2.typing import MatLike
 import serial
 import serial.tools.list_ports
 
 from capture.frame_analyzer import FrameAnalyzer
-from capture.observer import ObserverThread
+from capture.observer import ObserverThread, get_available_cameras
 from configuration_manager import ConfigurationManager
 from enums.configurations.command_type import CommandType
 from enums.configurations.formation_shape import FormationShape
@@ -33,18 +33,39 @@ from models.vectors import Pose2D
 from position_updater import PositionUpdater
 from stores.controller_context import ControllerContext
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Odyssey Formation Control")
         self.serial_port = None
+        self.observer_thread = None
 
         self.image_label = QLabel()
 
         # --- Layouts ---
         video_layout = QVBoxLayout()
-        video_layout.addWidget(self.image_label)
+        video_layout.addWidget(self.image_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # --- Camera Section ---
+        self.camera_dropdown = QComboBox()
+
+        self.refresh_camera_btn = QPushButton("Refresh Cameras")
+        self.refresh_camera_btn.clicked.connect(self.refresh_cameras)
+
+        self.connect_camera_btn = QPushButton("Start Camera")
+        self.connect_camera_btn.clicked.connect(self.start_camera)
+
+        camera_controls = QHBoxLayout()
+        camera_controls.addWidget(QLabel("Camera:"))
+        camera_controls.addWidget(self.camera_dropdown)
+        camera_controls.addWidget(self.refresh_camera_btn)
+        camera_controls.addWidget(self.connect_camera_btn)
 
         # --- Serial Port Section ---
         self.port_dropdown = QComboBox()
@@ -105,6 +126,7 @@ class MainWindow(QWidget):
         main_layout = QHBoxLayout()
         left_layout = QVBoxLayout()
         left_layout.addLayout(video_layout)
+        left_layout.addLayout(camera_controls)
         left_layout.addLayout(serial_controls)
         left_layout.addLayout(log_widget)
         left_layout.addLayout(command_layout)
@@ -116,9 +138,20 @@ class MainWindow(QWidget):
     def initialize_threads(self):
         self.context = ControllerContext()
 
-        self.observer_thread = ObserverThread(self.context)
+        # Auto-select first available camera
+        cameras = get_available_cameras()
+        camera_index = cameras[0][0] if cameras else 0
+
+        self.observer_thread = ObserverThread(self.context, camera_index)
         self.observer_thread.change_pixmap_signal.connect(self.update_image)
         self.observer_thread.start()
+
+        # Populate camera dropdown and select current camera
+        self.refresh_cameras()
+        for i in range(self.camera_dropdown.count()):
+            if self.camera_dropdown.itemData(i) == camera_index:
+                self.camera_dropdown.setCurrentIndex(i)
+                break
 
         self.analyzer_thread = FrameAnalyzer(self.observer_thread, self.context)
         self.analyzer_thread.start()
@@ -143,6 +176,30 @@ class MainWindow(QWidget):
         self.link_0_thread.start()
         self.link_1_thread.start()
         self.link_2_thread.start()
+
+    def refresh_cameras(self):
+        """Discover available cameras and populate the dropdown."""
+        self.camera_dropdown.clear()
+        for index, description in get_available_cameras():
+            self.camera_dropdown.addItem(description, index)
+
+    def start_camera(self):
+        """Start the camera with the selected index."""
+        camera_index = self.camera_dropdown.currentData()
+        if camera_index is None:
+            self.serial_log.append("No camera selected")
+            return
+
+        # Stop existing observer if running
+        if self.observer_thread and self.observer_thread.isRunning():
+            self.observer_thread.stop()
+            self.observer_thread.wait()
+
+        # Start new observer with selected camera
+        self.observer_thread = ObserverThread(self.context, camera_index)
+        self.observer_thread.change_pixmap_signal.connect(self.update_image)
+        self.observer_thread.start()
+        self.serial_log.append(f"Started camera {camera_index}")
 
     def handle_send_command(self):
         message: ConfigurationMessage = ConfigurationMessage(
@@ -191,9 +248,10 @@ class MainWindow(QWidget):
         """Receive QImage from the thread and update the label."""
         self.image_label.setPixmap(QPixmap.fromImage(qt_image))
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0: any) -> None:
         """Handle the window close event to properly terminate the thread."""
-        self.observer_thread.stop()
+        if self.observer_thread:
+            self.observer_thread.stop()
         self.analyzer_thread.stop()
         self.position_thread.stop()
         self.global_supervisor_thread.stop()
@@ -201,7 +259,8 @@ class MainWindow(QWidget):
         self.link_0_thread.stop()
         self.link_1_thread.stop()
         self.link_2_thread.stop()
-        self.observer_thread.wait()
+        if self.observer_thread:
+            self.observer_thread.wait()
         self.analyzer_thread.wait()
         self.position_thread.wait()
         self.global_supervisor_thread.wait()
@@ -209,7 +268,7 @@ class MainWindow(QWidget):
         self.link_0_thread.wait()
         self.link_1_thread.wait()
         self.link_2_thread.wait()
-        event.accept()
+        a0.accept()
 
 
 if __name__ == "__main__":
