@@ -43,8 +43,13 @@ class PositionUpdater(QThread):
                     continue
 
             targets = self.context.agent_target_store.get_all()
+            all_poses = self.context.agent_pose_store.get_all()
 
-            for marker_id, pose in self.context.agent_pose_store.get_all().items():
+            # Determine move signal: 0 = STOP, 1 = MOVE
+            any_missing = any(pose is None for pose in all_poses.values())
+            move_signal = 0 if (self.context.safety_stop_enabled and any_missing) else 1
+
+            for marker_id, pose in all_poses.items():
                 if pose is None:
                     continue
                 else:
@@ -55,7 +60,7 @@ class PositionUpdater(QThread):
                         target_pose = targets[marker_id]
                         xt, yt = target_pose.x, target_pose.y
 
-                    message = f"1,{marker_id},{pose.x:.3f},{pose.y:.3f},{pose.theta:.3f},{xt:.3f},{yt:.3f}\n"
+                    message = f"{move_signal},{marker_id},{pose.x:.3f},{pose.y:.3f},{pose.theta:.3f},{xt:.3f},{yt:.3f}\n"
 
                 logger.debug(message.strip())
                 self._mutex.lock()

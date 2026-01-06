@@ -7,6 +7,7 @@ from PyQt6.QtCore import pyqtSlot, Qt
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -104,6 +105,10 @@ class MainWindow(QWidget):
         self.push_config_btn = QPushButton("Send Command")
         self.push_config_btn.clicked.connect(self.handle_send_command)
 
+        self.safety_stop_checkbox = QCheckBox("Stop on lost detection")
+        self.safety_stop_checkbox.setChecked(False)
+        self.safety_stop_checkbox.stateChanged.connect(self.on_safety_stop_changed)
+
         # Layout for command controls
         command_layout = QHBoxLayout()
         command_layout.addWidget(QLabel("Command Type:"))
@@ -117,6 +122,7 @@ class MainWindow(QWidget):
         command_layout.addWidget(QLabel("Target Theta:"))
         command_layout.addWidget(self.theta_input)
         command_layout.addWidget(self.push_config_btn)
+        command_layout.addWidget(self.safety_stop_checkbox)
 
         # --- Log Layout ---
         log_widget = QHBoxLayout()
@@ -242,6 +248,10 @@ class MainWindow(QWidget):
             self.serial_log.append(f"Connected to serial port: {port}")
         except Exception as e:
             self.serial_log.append(f"Error connecting to {port}: {e}")
+
+    def on_safety_stop_changed(self, state):
+        """Toggle safety stop feature that stops robots when detection is lost."""
+        self.context.safety_stop_enabled = (state == Qt.CheckState.Checked.value)
 
     @pyqtSlot(QImage)
     def update_image(self, qt_image):
