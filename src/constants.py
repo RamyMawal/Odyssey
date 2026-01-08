@@ -19,3 +19,10 @@ NOMINAL_OFFSETS = {
     2: (LINK_LENGTH, 0.0),
     3: (LINK_LENGTH, 0.0),
 }
+
+# APF Collision Avoidance parameters
+APF_D_INFLUENCE = 0.3  # Radius of repulsive influence (meters)
+APF_D_SAFETY = 0.15  # Minimum safe distance / collision threshold (meters)
+APF_K_REP = 0.01  # Repulsive gain coefficient
+APF_ETA = 0.1  # Force-to-displacement scaling factor
+APF_MAX_ADJUSTMENT = 0.1  # Maximum target adjustment distance (meters)

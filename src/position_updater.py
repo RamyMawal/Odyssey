@@ -42,7 +42,7 @@ class PositionUpdater(QThread):
                     time.sleep(0.5)
                     continue
 
-            targets = self.context.agent_target_store.get_all()
+            targets = self.context.adjusted_target_store.get_all()
             all_poses = self.context.agent_pose_store.get_all()
 
             # Determine move signal: 0 = STOP, 1 = MOVE
