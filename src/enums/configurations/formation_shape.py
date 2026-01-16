@@ -5,4 +5,5 @@ class FormationShape(Enum):
     LINE = 1
     SQUARE = 2
     TRIANGLE = 3
-    ARROW = 4
+    DIAMOND = 4
+    FAN = 5

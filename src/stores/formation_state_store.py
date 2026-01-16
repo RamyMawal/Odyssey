@@ -7,6 +7,7 @@ class FormationDescriptor:
     r_d: tuple[float, float]      # global position
     q_d: float                    # global orientation
     theta_d: list[float]          # joint angles
+    link_multipliers: list[float] # length multipliers per link
 
 class FormationStateStore:
     def __init__(self):

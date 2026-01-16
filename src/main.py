@@ -82,6 +82,11 @@ class MainWindow(QWidget):
         self.serial_log = QTextEdit()
         self.serial_log.setReadOnly(True)
 
+        self.formation_log = QTextEdit()
+        self.formation_log.setReadOnly(True)
+        self.formation_log.setPlaceholderText("Formation debug log...")
+        self._prev_link_poses = None
+
         serial_controls = QHBoxLayout()
         serial_controls.addWidget(self.port_dropdown)
         serial_controls.addWidget(self.refresh_btn)
@@ -133,6 +138,7 @@ class MainWindow(QWidget):
         # --- Log Layout ---
         log_widget = QHBoxLayout()
         log_widget.addWidget(self.serial_log)
+        log_widget.addWidget(self.formation_log)
 
         # --- Main Layout ---
         main_layout = QHBoxLayout()
@@ -182,15 +188,12 @@ class MainWindow(QWidget):
         self.global_supervisor_thread.start()
 
         self.formation_dispatcher_thread = FormationDispatcher(self.context)
+        self.formation_dispatcher_thread.poses_computed.connect(self.on_poses_computed)
         self.formation_dispatcher_thread.start()
 
-        self.link_0_thread = LinkControllerThread(0, self.context)
-        self.link_1_thread = LinkControllerThread(1, self.context)
-        self.link_2_thread = LinkControllerThread(2, self.context)
-
-        self.link_0_thread.start()
-        self.link_1_thread.start()
-        self.link_2_thread.start()
+        self.link_threads = [LinkControllerThread(i, self.context) for i in range(4)]
+        for thread in self.link_threads:
+            thread.start()
 
     def refresh_cameras(self):
         """Discover available cameras and populate the dropdown."""
@@ -267,6 +270,31 @@ class MainWindow(QWidget):
         enabled = (state == Qt.CheckState.Checked.value)
         self.collision_avoidance_thread.set_enabled(enabled)
 
+    def on_poses_computed(self, origin_pos, origin_theta, joints, link_poses):
+        """Log formation poses when they change."""
+        # Check if values changed
+        if link_poses == self._prev_link_poses:
+            return
+        self._prev_link_poses = link_poses
+
+        # Get current shape name
+        config = self.configuration_manager.get_current_config()
+        _, formation, _ = config
+        shape_name = formation.name if formation else "UNKNOWN"
+
+        # Format log entry
+        log = "=== Formation Update ===\n"
+        log += f"Origin: ({origin_pos[0]:.3f}, {origin_pos[1]:.3f}) θ={math.degrees(origin_theta):.1f}°\n"
+        log += f"Shape: {shape_name}\n"
+        log += f"Joints: [{', '.join(f'{math.degrees(j):.1f}°' for j in joints)}]\n\n"
+
+        for i, (x, y, theta) in enumerate(link_poses):
+            log += f"Link {i} → Robot {i}: ({x:.3f}, {y:.3f}) θ={math.degrees(theta):.1f}°\n"
+
+        log += "=" * 24 + "\n"
+
+        self.formation_log.append(log)
+
     @pyqtSlot(QImage)
     def update_image(self, qt_image):
         """Receive QImage from the thread and update the label."""
@@ -281,9 +309,8 @@ class MainWindow(QWidget):
         self.position_thread.stop()
         self.global_supervisor_thread.stop()
         self.formation_dispatcher_thread.stop()
-        self.link_0_thread.stop()
-        self.link_1_thread.stop()
-        self.link_2_thread.stop()
+        for thread in self.link_threads:
+            thread.stop()
         if self.observer_thread:
             self.observer_thread.wait()
         self.analyzer_thread.wait()
@@ -291,9 +318,8 @@ class MainWindow(QWidget):
         self.position_thread.wait()
         self.global_supervisor_thread.wait()
         self.formation_dispatcher_thread.wait()
-        self.link_0_thread.wait()
-        self.link_1_thread.wait()
-        self.link_2_thread.wait()
+        for thread in self.link_threads:
+            thread.wait()
         a0.accept()
 
 
