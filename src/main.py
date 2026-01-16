@@ -263,11 +263,11 @@ class MainWindow(QWidget):
 
     def on_safety_stop_changed(self, state):
         """Toggle safety stop feature that stops robots when detection is lost."""
-        self.context.safety_stop_enabled = (state == Qt.CheckState.Checked.value)
+        self.context.safety_stop_enabled = state == Qt.CheckState.Checked.value
 
     def on_apf_changed(self, state):
         """Toggle APF collision avoidance feature."""
-        enabled = (state == Qt.CheckState.Checked.value)
+        enabled = state == Qt.CheckState.Checked.value
         self.collision_avoidance_thread.set_enabled(enabled)
 
     def on_poses_computed(self, origin_pos, origin_theta, joints, link_poses):
@@ -283,15 +283,12 @@ class MainWindow(QWidget):
         shape_name = formation.name if formation else "UNKNOWN"
 
         # Format log entry
-        log = "=== Formation Update ===\n"
-        log += f"Origin: ({origin_pos[0]:.3f}, {origin_pos[1]:.3f}) θ={math.degrees(origin_theta):.1f}°\n"
+        log = f"Origin: ({origin_pos[0]:.3f}, {origin_pos[1]:.3f}) θ={math.degrees(origin_theta):.1f}°\n"
         log += f"Shape: {shape_name}\n"
-        log += f"Joints: [{', '.join(f'{math.degrees(j):.1f}°' for j in joints)}]\n\n"
+        log += f"Joints: [{', '.join(f'{math.degrees(j):.1f}°' for j in joints)}]\n"
 
         for i, (x, y, theta) in enumerate(link_poses):
             log += f"Link {i} → Robot {i}: ({x:.3f}, {y:.3f}) θ={math.degrees(theta):.1f}°\n"
-
-        log += "=" * 24 + "\n"
 
         self.formation_log.append(log)
 
