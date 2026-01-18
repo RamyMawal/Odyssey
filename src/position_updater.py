@@ -13,7 +13,7 @@ class PositionUpdater(QThread):
         self._running = True
         self.context = context
         self.serial_conn = None
-        self._current_port = None
+        self._current_port = None | serial.Serial
         self._mutex = QMutex()
 
     def run(self):
@@ -42,7 +42,7 @@ class PositionUpdater(QThread):
                     time.sleep(0.5)
                     continue
 
-            targets = self.context.agent_target_store.get_all()
+            targets = self.context.resolved_target_store.get_all()
             all_poses = self.context.agent_pose_store.get_all()
 
             # Determine move signal: 0 = STOP, 1 = MOVE
@@ -50,6 +50,8 @@ class PositionUpdater(QThread):
             move_signal = 0 if (self.context.safety_stop_enabled and any_missing) else 1
 
             for marker_id, pose in all_poses.items():
+                if marker_id > 3:
+                    continue
                 if pose is None:
                     continue
                 else:
@@ -63,6 +65,7 @@ class PositionUpdater(QThread):
                     message = f"{move_signal},{marker_id},{pose.x:.3f},{pose.y:.3f},{pose.theta:.3f},{xt:.3f},{yt:.3f}\n"
 
                 logger.debug(message.strip())
+
                 self._mutex.lock()
                 try:
                     self.serial_conn.write(message.encode("utf-8"))

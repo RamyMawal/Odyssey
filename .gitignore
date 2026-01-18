@@ -3,3 +3,4 @@ calibration_images/*
 *.png
 *.pyc
 __pycache__/
+docs/*

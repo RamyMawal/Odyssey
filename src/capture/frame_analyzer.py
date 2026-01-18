@@ -16,7 +16,9 @@ from stores.controller_context import ControllerContext
 
 logger = logging.getLogger(__name__)
 
-calibration_data_path = pathlib.Path(__file__).parent.parent.parent / "calibration_data_latest.npz"
+calibration_data_path = (
+    pathlib.Path(__file__).parent.parent.parent / "calibration_data_latest.npz"
+)
 
 
 class FrameAnalyzer(QThread):

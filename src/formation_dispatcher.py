@@ -2,8 +2,8 @@ import logging
 import time
 from math import cos, sin
 import numpy as np
-from PyQt6.QtCore import QThread
-from constants import LINK_LENGTH
+from PyQt6.QtCore import QThread, pyqtSignal
+from constants import LINK_LENGTH, NUM_LINKS
 from models.vectors import Pose2D
 from stores.controller_context import ControllerContext
 
@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 class FormationDispatcher(QThread):
+    # Signal: (origin_pos, origin_theta, joint_angles, link_poses)
+    poses_computed = pyqtSignal(tuple, float, list, list)
+
     def __init__(self, context: ControllerContext):
         super().__init__()
         self.context = context
@@ -24,38 +27,38 @@ class FormationDispatcher(QThread):
                 time.sleep(0.5)
                 continue
 
-            (r_d_x, r_d_y), q_d, joints = (
+            (r_d_x, r_d_y), q_d, joints, multipliers = (
                 descriptor.r_d,
                 descriptor.q_d,
                 descriptor.theta_d,
+                descriptor.link_multipliers,
             )
 
-            X_r = np.array(
+            # Origin transformation matrix (virtual origin point)
+            X_origin = np.array(
                 [[cos(q_d), -sin(q_d), r_d_x], [sin(q_d), cos(q_d), r_d_y], [0, 0, 1]]
             )
 
-            X_0_1 = np.eye(3) @ R(joints[0]) @ T(LINK_LENGTH)
-            X_0_2 = X_0_1 @ R(joints[1]) @ T(LINK_LENGTH)
+            # Build chain: each link rotates by joint angle, then translates
+            cumulative = X_origin
+            orientation = q_d
 
-            X_0 = X_r
-            X_1 = X_r @ X_0_1
-            X_2 = X_r @ X_0_2
+            link_poses = []
+            for i in range(NUM_LINKS):
+                # Use shape-specific multiplier for link length
+                link_length = multipliers[i] * LINK_LENGTH
 
-            r_d_0 = X_0[0, 2], X_0[1, 2]
-            r_d_1 = X_1[0, 2], X_1[1, 2]
-            r_d_2 = X_2[0, 2], X_2[1, 2]
+                # Apply rotation for this joint, then translate along link
+                cumulative = cumulative @ R(joints[i]) @ T(link_length)
+                orientation = orientation + joints[i]
 
-            q_0 = q_d
-            q_1 = q_0 + joints[0]
-            q_2 = q_1 + joints[1]
+                # Extract position from transformation matrix
+                pos = (cumulative[0, 2], cumulative[1, 2])
+                self.context.link_pose_store.update(i, Pose2D(pos[0], pos[1], orientation))
+                link_poses.append((pos[0], pos[1], orientation))
 
-            # print(
-            #     f"Dispatching poses: {r_d_0}, {r_d_1}, {r_d_2} with angles: {q_0}, {q_1}, {q_2}"
-            # )
-
-            self.context.link_pose_store.update(0, Pose2D(r_d_0[0], r_d_0[1], q_0))
-            self.context.link_pose_store.update(1, Pose2D(r_d_1[0], r_d_1[1], q_1))
-            self.context.link_pose_store.update(2, Pose2D(r_d_2[0], r_d_2[1], q_2))
+            # Emit signal with computed poses
+            self.poses_computed.emit((r_d_x, r_d_y), q_d, joints, link_poses)
 
             time.sleep(0.5)
 
