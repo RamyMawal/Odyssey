@@ -1,4 +1,4 @@
-from stores.agent_adjusted_target_store import AgentAdjustedTargetStore
+from stores.agent_resolved_target_store import AgentResolvedTargetStore
 from stores.agent_target_store import AgentTargetStore
 from stores.formation_state_store import FormationStateStore
 from stores.frame_data_store import FrameDataStore
@@ -12,7 +12,7 @@ class ControllerContext:
     formation_state_store: FormationStateStore
     frame_data_store: FrameDataStore
     agent_target_store: AgentTargetStore
-    adjusted_target_store: AgentAdjustedTargetStore
+    resolved_target_store: AgentResolvedTargetStore
     port: str
     safety_stop_enabled: bool
 
@@ -22,7 +22,7 @@ class ControllerContext:
         self.formation_state_store = FormationStateStore()
         self.frame_data_store = FrameDataStore()
         self.agent_target_store = AgentTargetStore()
-        self.adjusted_target_store = AgentAdjustedTargetStore()
+        self.resolved_target_store = AgentResolvedTargetStore()
         self.port = ""
         self.safety_stop_enabled = False  
 

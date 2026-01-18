@@ -1,6 +1,5 @@
 from threading import Lock
 from typing import Dict, Optional
-from dataclasses import dataclass
 
 from models.vectors import Pose2D
 
@@ -12,7 +11,6 @@ class AgentTargetStore:
 
     def update(self, agent_id: int, pose: Pose2D):
         with self._lock:
-            print(f"{agent_id}:{pose}")
             self._poses[agent_id] = pose
 
     def update_batch(self, pose_dict: Dict[int, Pose2D]):

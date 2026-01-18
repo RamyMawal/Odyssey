@@ -25,9 +25,9 @@ NOMINAL_OFFSETS = {
     3: (0.0, 0.0),
 }
 
-# APF Collision Avoidance parameters
-APF_D_INFLUENCE = 0.25  # Radius of repulsive influence (meters)
-APF_D_SAFETY = 0.20  # Minimum safe distance / collision threshold (meters)
-APF_K_REP = 0.01  # Repulsive gain coefficient
-APF_ETA = 0.1  # Force-to-displacement scaling factor
-APF_MAX_ADJUSTMENT = 0.1  # Maximum target adjustment distance (meters)
+# Path Crossing Resolver / Collision Avoidance parameters
+PCR_COLLISION_RADIUS = 0.30  # Meters - conflict detection radius
+PCR_TIME_WINDOW = 2.0  # Seconds - arrival time conflict window
+PCR_ROBOT_SPEED_MIN = 0.2  # m/s - minimum robot speed
+PCR_ROBOT_SPEED_MAX = 1.0  # m/s - maximum robot speed
+PCR_CLEAR_MARGIN = 1.5  # Hysteresis factor for clearing conflicts

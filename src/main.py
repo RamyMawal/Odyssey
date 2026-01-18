@@ -23,8 +23,8 @@ import serial.tools.list_ports
 
 from capture.frame_analyzer import FrameAnalyzer
 from capture.observer import ObserverThread, get_available_cameras
-from collision_avoidance import CollisionAvoidanceLayer
 from configuration_manager import ConfigurationManager
+from path_crossing_resolver import PathCrossingResolver
 from enums.configurations.command_type import CommandType
 from enums.configurations.formation_shape import FormationShape
 from formation_dispatcher import FormationDispatcher
@@ -115,9 +115,9 @@ class MainWindow(QWidget):
         self.safety_stop_checkbox.setChecked(False)
         self.safety_stop_checkbox.stateChanged.connect(self.on_safety_stop_changed)
 
-        self.apf_checkbox = QCheckBox("APF Collision Avoidance")
-        self.apf_checkbox.setChecked(True)
-        self.apf_checkbox.stateChanged.connect(self.on_apf_changed)
+        self.collision_avoidance_checkbox = QCheckBox("Collision Avoidance")
+        self.collision_avoidance_checkbox.setChecked(True)
+        self.collision_avoidance_checkbox.stateChanged.connect(self.on_collision_avoidance_changed)
 
         # Layout for command controls
         command_layout = QHBoxLayout()
@@ -133,7 +133,7 @@ class MainWindow(QWidget):
         command_layout.addWidget(self.theta_input)
         command_layout.addWidget(self.push_config_btn)
         command_layout.addWidget(self.safety_stop_checkbox)
-        command_layout.addWidget(self.apf_checkbox)
+        command_layout.addWidget(self.collision_avoidance_checkbox)
 
         # --- Log Layout ---
         log_widget = QHBoxLayout()
@@ -176,8 +176,9 @@ class MainWindow(QWidget):
 
         self.configuration_manager = ConfigurationManager()
 
-        self.collision_avoidance_thread = CollisionAvoidanceLayer(self.context)
-        self.collision_avoidance_thread.start()
+        # Path crossing resolver handles collision avoidance
+        self.path_crossing_resolver_thread = PathCrossingResolver(self.context)
+        self.path_crossing_resolver_thread.start()
 
         self.position_thread = PositionUpdater(self.context)
         self.position_thread.start()
@@ -265,10 +266,10 @@ class MainWindow(QWidget):
         """Toggle safety stop feature that stops robots when detection is lost."""
         self.context.safety_stop_enabled = state == Qt.CheckState.Checked.value
 
-    def on_apf_changed(self, state):
-        """Toggle APF collision avoidance feature."""
+    def on_collision_avoidance_changed(self, state):
+        """Toggle collision avoidance feature."""
         enabled = state == Qt.CheckState.Checked.value
-        self.collision_avoidance_thread.set_enabled(enabled)
+        self.path_crossing_resolver_thread.set_enabled(enabled)
 
     def on_poses_computed(self, origin_pos, origin_theta, joints, link_poses):
         """Log formation poses when they change."""
@@ -302,7 +303,7 @@ class MainWindow(QWidget):
         if self.observer_thread:
             self.observer_thread.stop()
         self.analyzer_thread.stop()
-        self.collision_avoidance_thread.stop()
+        self.path_crossing_resolver_thread.stop()
         self.position_thread.stop()
         self.global_supervisor_thread.stop()
         self.formation_dispatcher_thread.stop()
@@ -311,7 +312,7 @@ class MainWindow(QWidget):
         if self.observer_thread:
             self.observer_thread.wait()
         self.analyzer_thread.wait()
-        self.collision_avoidance_thread.wait()
+        self.path_crossing_resolver_thread.wait()
         self.position_thread.wait()
         self.global_supervisor_thread.wait()
         self.formation_dispatcher_thread.wait()
